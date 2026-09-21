@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+data/raw/*
+data/processed/*
+checkpoints/*
+*.pt
+*.pth
+*.safetensors
+tokenizer.json
