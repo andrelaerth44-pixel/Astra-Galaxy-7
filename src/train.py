@@ -29,9 +29,17 @@ def build_scheduler(optimizer, warmup_steps, total_steps):
     return torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
 
 
-def save_checkpoint(model, path):
+def save_checkpoint(model, optimizer, model_config, optimizer_step, path):
     path.parent.mkdir(parents=True, exist_ok=True)
-    torch.save(model.state_dict(), path)
+    torch.save(
+        {
+            "model": model.state_dict(),
+            "model_config": model_config,
+            "optimizer": optimizer.state_dict(),
+            "step": optimizer_step,
+        },
+        path,
+    )
 
 
 def main():
@@ -130,6 +138,9 @@ def main():
             if optimizer_step % tcfg["save_every"] == 0:
                 save_checkpoint(
                     model,
+                    optimizer,
+                    mcfg,
+                    optimizer_step,
                     Path(tcfg["checkpoint_dir"]) / f"step-{optimizer_step}.pt",
                 )
 
@@ -139,6 +150,9 @@ def main():
     progress.close()
     save_checkpoint(
         model,
+        optimizer,
+        mcfg,
+        optimizer_step,
         Path(tcfg["checkpoint_dir"]) / "final.pt",
     )
     print("training complete")
