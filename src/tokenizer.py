@@ -1,5 +1,9 @@
 from pathlib import Path
+
 from tokenizers import Tokenizer, models, trainers, pre_tokenizers, decoders
+
+
+SPECIAL_TOKENS = ["<pad>", "<unk>", "<bos>", "<eos>"]
 
 
 def train_tokenizer(input_files, output_path, vocab_size=32000):
@@ -9,11 +13,18 @@ def train_tokenizer(input_files, output_path, vocab_size=32000):
 
     trainer = trainers.BpeTrainer(
         vocab_size=vocab_size,
-        special_tokens=["<pad>", "<unk>", "<bos>", "<eos>"],
+        special_tokens=SPECIAL_TOKENS,
+        min_frequency=2,
     )
     tokenizer.train([str(p) for p in input_files], trainer)
+    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     tokenizer.save(str(output_path))
     return tokenizer
+
+
+def encode_text(tokenizer_path, text):
+    tokenizer = Tokenizer.from_file(str(tokenizer_path))
+    return tokenizer.encode(text).ids
 
 
 def encode_file(tokenizer_path, input_path, output_path):
