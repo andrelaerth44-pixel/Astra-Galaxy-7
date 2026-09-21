@@ -4,3 +4,4 @@ tqdm>=4.66
 tokenizers>=0.20
 safetensors>=0.4
 numpy>=1.26
+pytest>=8.0
