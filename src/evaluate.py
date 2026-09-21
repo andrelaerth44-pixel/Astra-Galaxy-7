@@ -41,9 +41,25 @@ def main():
     device = "cuda" if torch.cuda.is_available() else "cpu"
     checkpoint = torch.load(args.checkpoint, map_location=device, weights_only=False)
 
-    model_config = checkpoint["model_config"]
+    if "model" in checkpoint and "model_config" in checkpoint:
+        model_config = checkpoint["model_config"]
+        state_dict = checkpoint["model"]
+    else:
+        # Backward compatibility with early checkpoints that stored only weights.
+        model_config = {
+            "vocab_size": 32000,
+            "hidden_size": 512,
+            "num_layers": 8,
+            "num_heads": 8,
+            "intermediate_size": 2048,
+            "max_seq_len": args.seq_len,
+            "rope_theta": 10000.0,
+            "dropout": 0.0,
+        }
+        state_dict = checkpoint
+
     model = AstraGalaxy7(model_config).to(device)
-    model.load_state_dict(checkpoint["model"])
+    model.load_state_dict(state_dict)
     loader = DataLoader(
         TokenDataset(args.data, args.seq_len),
         batch_size=args.batch_size,
