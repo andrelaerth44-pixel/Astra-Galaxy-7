@@ -29,6 +29,24 @@ def build_scheduler(optimizer, warmup_steps, total_steps):
     return torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
 
 
+@torch.no_grad()
+def validation_loss(model, loader, device, max_batches):
+    model.eval()
+    total_loss = 0.0
+    total_tokens = 0
+    for batch_index, (x, y) in enumerate(loader):
+        if max_batches is not None and batch_index >= max_batches:
+            break
+        x = x.to(device, non_blocking=True)
+        y = y.to(device, non_blocking=True)
+        _, loss = model(x, y)
+        tokens = y.numel()
+        total_loss += loss.item() * tokens
+        total_tokens += tokens
+    model.train()
+    return total_loss / max(total_tokens, 1)
+
+
 def save_checkpoint(model, optimizer, model_config, optimizer_step, path):
     path.parent.mkdir(parents=True, exist_ok=True)
     torch.save(
@@ -70,6 +88,20 @@ def main():
         pin_memory=device == "cuda",
         num_workers=0,
     )
+
+    validation_loader = None
+    validation_path = tcfg.get("validation_data_path")
+    if validation_path:
+        validation_dataset = TokenDataset(validation_path, mcfg["max_seq_len"])
+        if len(validation_dataset) > 0:
+            validation_loader = DataLoader(
+                validation_dataset,
+                batch_size=tcfg["batch_size"],
+                shuffle=False,
+                drop_last=False,
+                pin_memory=device == "cuda",
+                num_workers=0,
+            )
 
     optimizer = torch.optim.AdamW(
         model.parameters(),
@@ -133,6 +165,22 @@ def main():
                 lr = scheduler.get_last_lr()[0]
                 print(
                     f"step={optimizer_step} loss={loss.item():.4f} lr={lr:.6g}"
+                )
+
+            should_evaluate = (
+                validation_loader is not None
+                and optimizer_step % tcfg.get("eval_every", tcfg["save_every"]) == 0
+            )
+            if should_evaluate:
+                val_loss = validation_loss(
+                    model,
+                    validation_loader,
+                    device,
+                    tcfg.get("eval_batches"),
+                )
+                print(
+                    f"step={optimizer_step} validation_loss={val_loss:.4f} "
+                    f"perplexity={math.exp(min(val_loss, 20.0)):.3f}"
                 )
 
             if optimizer_step % tcfg["save_every"] == 0:
