@@ -14,3 +14,37 @@ jobs:
           python-version: "3.11"
       - run: pip install -r requirements.txt
       - run: pytest -q
+
+  smoke-training:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - name: Build tiny corpus
+        run: python scripts/make_sample_corpus.py
+      - name: Deduplicate
+        run: |
+          python scripts/deduplicate_jsonl.py             --input data/raw/sample.jsonl             --output data/clean/dedup.jsonl
+      - name: Split
+        run: |
+          python scripts/split_corpus.py             --input data/clean/dedup.jsonl             --train data/clean/train.jsonl             --validation data/clean/validation.jsonl             --validation-percent 20
+      - name: Prepare text
+        run: |
+          python scripts/prepare_data.py             --input data/clean/train.jsonl             --output data/processed/train.txt
+          python scripts/prepare_data.py             --input data/clean/validation.jsonl             --output data/processed/validation.txt
+      - name: Train tokenizer
+        run: |
+          python scripts/build_tokenizer.py             --input data/processed/train.txt             --output data/processed/tokenizer.json             --vocab-size 256
+      - name: Tokenize
+        run: |
+          python scripts/tokenize_data.py             --tokenizer data/processed/tokenizer.json             --input data/processed/train.txt             --output data/processed/train.bin
+          python scripts/tokenize_data.py             --tokenizer data/processed/tokenizer.json             --input data/processed/validation.txt             --output data/processed/validation.bin
+      - name: Smoke train
+        run: python -m src.train --config config/smoke.yaml
+      - name: Evaluate checkpoint
+        run: |
+          python -m src.evaluate             --checkpoint checkpoints/smoke/final.pt             --data data/processed/validation.bin             --seq-len 128
