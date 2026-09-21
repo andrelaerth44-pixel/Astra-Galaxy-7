@@ -19,5 +19,8 @@ training:
   log_every: 10
   save_every: 500
   data_path: data/processed/train.bin
+  validation_data_path: data/processed/validation.bin
+  eval_every: 500
+  eval_batches: 50
   checkpoint_dir: checkpoints
   precision: bf16
